@@ -141,3 +141,12 @@ dist
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vite/
+
+# IDEs
+.idea
+
+# Local files
+*.local
+
+# Distribution
+dist-ssr
