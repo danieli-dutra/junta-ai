@@ -1,9 +1,13 @@
 # Agente Financeiro do Grana.ai
 
-> Documento de visão geral do agente conversacional do Grana.ai.
+# AI Overview
 
+**Documento:** AI-001  
 **Versão:** 1.0  
+**Última atualização:** 03/07/2026  
 **Status:** Em desenvolvimento
+
+> Documento de visão geral do agente conversacional do Grana.ai.
 
 ---
 
