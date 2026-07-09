@@ -190,6 +190,7 @@ Projeto desenvolvido por:
 - Danieli Dutra
 - Jordan Fischer
 - Robert Melo
+- Thais Rodrigues
 
 Como parte da formação em **Desenvolvimento Full Stack** da **+praTi / Codifica**.
 
