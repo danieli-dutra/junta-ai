@@ -1,7 +1,7 @@
 function App() {
   return (
     <>
-      <h1>Rex - Seu assistente financeiro</h1>
+      <h1>Junta.ai - Seu assistente financeiro</h1>
     </>
   );
 }
