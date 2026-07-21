@@ -7,19 +7,17 @@ const STORAGE_KEY = "theme";
 export const THEMES = {
   LIGHT: "light",
   DARK: "dark",
-} as const;
-
-export type Theme = typeof THEMES[keyof typeof THEMES];
+};
 
 /* ==========================================================================
    Helpers
    ========================================================================== */
 
-function applyTheme(theme: Theme): void {
+function applyTheme(theme) {
   document.documentElement.dataset.theme = theme;
 }
 
-function persistTheme(theme: Theme): void {
+function persistTheme(theme) {
   localStorage.setItem(STORAGE_KEY, theme);
 }
 
@@ -27,7 +25,7 @@ function persistTheme(theme: Theme): void {
    Public API
    ========================================================================== */
 
-export function getTheme(): Theme {
+export function getTheme() {
   const savedTheme = localStorage.getItem(STORAGE_KEY);
 
   return savedTheme === THEMES.LIGHT
@@ -35,16 +33,16 @@ export function getTheme(): Theme {
     : THEMES.DARK;
 }
 
-export function setTheme(theme: Theme): void {
+export function setTheme(theme) {
   applyTheme(theme);
   persistTheme(theme);
 }
 
-export function initializeTheme(): void {
+export function initializeTheme() {
   applyTheme(getTheme());
 }
 
-export function toggleTheme(): Theme {
+export function toggleTheme() {
   const nextTheme =
     getTheme() === THEMES.DARK
       ? THEMES.LIGHT
@@ -55,10 +53,10 @@ export function toggleTheme(): Theme {
   return nextTheme;
 }
 
-export function isDarkTheme(): boolean {
+export function isDarkTheme() {
   return getTheme() === THEMES.DARK;
 }
 
-export function isLightTheme(): boolean {
+export function isLightTheme() {
   return getTheme() === THEMES.LIGHT;
 }
