@@ -1,0 +1,5 @@
+.landing-layout {
+  min-height: 100vh;
+  background-color: var(--background);
+  color: var(--text-primary);
+}

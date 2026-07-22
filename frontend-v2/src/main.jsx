@@ -1,6 +1,8 @@
 import ReactDOM from "react-dom/client";
+import { BrowserRouter } from "react-router-dom";
 
 import App from "./App";
+import AppProviders from "./app/providers";
 import { initializeTheme } from "./utils/theme";
 
 initializeTheme();
@@ -12,5 +14,9 @@ if (!root) {
 }
 
 ReactDOM.createRoot(root).render(
-  <App />
+  <BrowserRouter>
+    <AppProviders>
+      <App />
+    </AppProviders>
+  </BrowserRouter>
 );

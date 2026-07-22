@@ -1,9 +1,7 @@
+import AppRoutes from "./app/routes";
+
 function App() {
-  return (
-    <>
-      <h1>Junta.ai - Seu assistente financeiro</h1>
-    </>
-  );
+  return <AppRoutes />;
 }
 
 export default App;
