@@ -115,4 +115,15 @@
 --surface-active: var(--gray-100);
 --surface-selected: var(--purple-50);
 
+
+/* --------------------------------------------------------------------------
+   Radius
+   -------------------------------------------------------------------------- */
+
+--radius-sm: .5rem;
+--radius-md: .75rem;
+--radius-lg: 1rem;
+--radius-xl: 1.5rem;
+--radius-full: 9999px;
+
 }

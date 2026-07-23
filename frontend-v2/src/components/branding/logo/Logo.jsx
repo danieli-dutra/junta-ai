@@ -1,14 +1,14 @@
-import logo from "@/assets/logos/logo-junta-ai.svg";
+import logo from "@/logos/logo-junta-ai.svg";
 
-export function Logo({
+export default function Logo({
   width = 180,
   height,
-  className,
+  className = "",
 }) {
   return (
     <img
       src={logo}
-      alt="Junta.ai"
+      alt="Logo do Junta.ai"
       width={width}
       height={height}
       className={className}

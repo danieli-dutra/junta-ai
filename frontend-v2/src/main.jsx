@@ -3,6 +3,9 @@ import { BrowserRouter } from "react-router-dom";
 
 import App from "./App";
 import AppProviders from "./app/providers";
+
+import "./styles/global.css";
+
 import { initializeTheme } from "./utils/theme";
 
 initializeTheme();
