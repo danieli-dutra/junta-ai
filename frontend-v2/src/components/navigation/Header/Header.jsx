@@ -1,18 +1,28 @@
-import "./Header.css";
-import Logo from "../../logos/logo-junta-ai.svg";
+import Button from "@/components/common/Button";
+import Logo from "@/components/branding/Logo";
+import Navbar from "@/components/navigation/Navbar";
+import ThemeSwitch from "../ThemeSwitch";
 
-export function Header() {
+import "./Header.css";
+
+function Header() {
   return (
     <header className="header">
-      <img
-        src={Logo}
-        alt="Junta.ai"
-        width={170}
-      />
+      <div className="header__container">
+        <Logo variant="icon" width={48} />
 
-      <div className="actions">
-        {/* ThemeToggle virá aqui */}
+        <Navbar />
+
+        <div className="header__controls">
+          <ThemeSwitch />
+
+          <Button variant="primary">
+            Criar conta
+          </Button>
+        </div>
       </div>
     </header>
   );
 }
+
+export default Header;

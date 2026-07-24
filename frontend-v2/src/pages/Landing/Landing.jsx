@@ -1,11 +1,7 @@
-import ThemeSwitch from "@/components/ThemeSwitch/ThemeSwitch";
-
 export default function Landing() {
   return (
-    <main>
+    <section>
       <h1>Landing</h1>
-
-      <ThemeSwitch />
-    </main>
+    </section>
   );
 }

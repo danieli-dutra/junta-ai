@@ -1,11 +1,22 @@
 import { Outlet } from "react-router-dom";
 
+import Header from "@/components/navigation/Header";
+import Footer from "@/components/navigation/Footer";
+
 import "./LandingLayout.css";
 
-export default function LandingLayout() {
+function LandingLayout() {
   return (
-    <main className="landing-layout">
-      <Outlet />
-    </main>
+    <div className="landing-layout">
+      <Header />
+
+      <main>
+        <Outlet />
+      </main>
+
+      <Footer />
+    </div>
   );
 }
+
+export default LandingLayout;

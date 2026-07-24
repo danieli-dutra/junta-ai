@@ -1,14 +1,13 @@
 import { Routes, Route } from "react-router-dom";
 
-import LandingLayout from "../layouts/LandingLayout/LandingLayout";
-import AuthLayout from "../layouts/AuthLayout/AuthLayout";
+import LandingLayout from "@/layouts/LandingLayout";
+import AuthLayout from "@/layouts/AuthLayout";
 
-import Landing from "../pages/Landing/Landing";
-import Home from "../pages/Home/Home";
-import Assistente from "../pages/Assistente/Assistente";
-import Dashboard from "../pages/Dashboard/Dashboard";
-import Relatorios from "../pages/Relatorios/Relatorios";
-import Perfil from "../pages/Perfil/Perfil";
+import Landing from "@/pages/Landing";
+import Dashboard from "@/pages/Dashboard";
+import Assistente from "@/pages/Assistente";
+import Relatorios from "@/pages/Relatorios";
+import Perfil from "@/pages/Perfil";
 
 function AppRoutes() {
   return (
@@ -18,9 +17,8 @@ function AppRoutes() {
         <Route path="/" element={<Landing />} />
       </Route>
 
-      {/* Área autenticada */}
+      {/* Área autenticada (futuramente protegida por PrivateRoute) */}
       <Route element={<AuthLayout />}>
-        <Route path="/home" element={<Home />} />
         <Route path="/assistente" element={<Assistente />} />
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/relatorios" element={<Relatorios />} />
