@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { Bar, BarChart, CartesianGrid, Cell, Legend, Line, LineChart, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { CATEGORY_META, aggregateByCategory, aggregateByMonth, aggregateCategoryHistory, filterByRange, formatDateBR, formatMoney, getCurrentMonthRange, loadCategories, loadCategoryColors, loadTransactions, saveCategories, saveCategoryColors, saveDateRange } from "@/services/finance/store";
+import { CATEGORY_META, aggregateByCategory, aggregateByMonth, aggregateCategoryHistory, filterByRange, formatDateBR, formatMoney, getCurrentMonthRange, loadCategories, loadCategoryColors, loadTransactions, saveCategories, saveCategoryColors, saveDateRange, saveTransactions } from "@/services/finance/store";
 import DateRangeFilter from "./DateRangeFilter";
 import { useTheme } from "@/contexts/useTheme";
 import { THEMES } from "@/utils/theme";
 import "./VisaoMes.css";
 
-const TABS = [["overview", "Visão geral"], ["history", "Histórico"], ["transactions", "Transações"], ["flow", "Entradas e saídas"]];
+const TABS = [["overview", "Visão geral"], ["history", "Histórico"], ["transactions", "Transações"], ["flow", "Entradas e saídas"], ["categories", "Categorias"]];
 const THEME_TOKENS = {
   dark: { bg: "#0f0f0f", surface: "#1a1a1a", border: "#2e2e2e", text: "#f0f0f0", textMuted: "#888", textDim: "#444", inputBg: "#111" },
   light: { bg: "#f0f2f5", surface: "#fff", border: "#e2e5eb", text: "#111827", textMuted: "#6b7280", textDim: "#9ca3af", inputBg: "#f0f2f5" },
@@ -22,6 +22,7 @@ export default function VisaoMes({ title = "Visão do mês", variant = "month" }
   const [categories, setCategories] = useState(loadCategories);
   const [categoryColors, setCategoryColors] = useState(loadCategoryColors);
   const [showCategoryForm, setShowCategoryForm] = useState(false);
+  const [editingCategory, setEditingCategory] = useState(null);
   const [newCategory, setNewCategory] = useState("");
   const [newCategoryColor, setNewCategoryColor] = useState("#7c3aed");
 
@@ -63,18 +64,58 @@ export default function VisaoMes({ title = "Visão do mês", variant = "month" }
     event.preventDefault();
     const name = newCategory.trim();
     if (!name || categories.includes(name)) return;
-    saveCategories([...categories, name]);
-    saveCategoryColors({ ...categoryColors, [name]: newCategoryColor });
+    if (editingCategory) {
+      const nextTransactions = transactions.map((transaction) => transaction.category === editingCategory ? { ...transaction, category: name } : transaction);
+      const nextCategories = categories.map((category) => category === editingCategory ? name : category);
+      const nextColors = { ...categoryColors, [name]: newCategoryColor };
+      delete nextColors[editingCategory];
+      setTransactions(nextTransactions);
+      setCategories(nextCategories);
+      setCategoryColors(nextColors);
+      saveTransactions(nextTransactions);
+      saveCategories(nextCategories);
+      saveCategoryColors(nextColors);
+    } else {
+      saveCategories([...categories, name]);
+      saveCategoryColors({ ...categoryColors, [name]: newCategoryColor });
+    }
+    setNewCategory("");
+    setNewCategoryColor("#7c3aed");
+    setEditingCategory(null);
+    setShowCategoryForm(false);
+  };
+
+  const openCategoryForm = (category = null) => {
+    setEditingCategory(category);
+    setNewCategory(category || "");
+    setNewCategoryColor(category ? categoryColors[category] || "#7c3aed" : "#7c3aed");
+    setShowCategoryForm(true);
+  };
+
+  const closeCategoryForm = () => {
+    setEditingCategory(null);
     setNewCategory("");
     setNewCategoryColor("#7c3aed");
     setShowCategoryForm(false);
+  };
+
+  const deleteCategory = (category) => {
+    const nextCategories = categories.filter((item) => item !== category);
+    saveCategories(nextCategories);
+    setCategories(nextCategories);
+    setCategoryColors((current) => {
+      const nextColors = { ...current };
+      delete nextColors[category];
+      saveCategoryColors(nextColors);
+      return nextColors;
+    });
   };
 
   return <main className="finance-page" style={{ background: T.bg, color: T.text }}>
     <header className="finance-header" style={{ background: T.surface, borderColor: T.border }}>
       <Link to="/assistente" className="finance-back">← Assistente</Link>
       <div><h1>{title}</h1><p>{range ? `${formatDateBR(range.start)} até ${formatDateBR(range.end)} · ` : "Todos os períodos · "}{filtered.length} transações</p></div>
-      <div className="finance-header-actions"><button type="button" onClick={() => setShowCategoryForm(true)} className="finance-add">＋ Categoria</button><DateRangeFilter value={range} onChange={(next) => { setRange(next); saveDateRange(next); }} tokens={T} /></div>
+      <div className="finance-header-actions"><button type="button" onClick={() => openCategoryForm()} className="finance-add">＋ Categoria</button><DateRangeFilter value={range} onChange={(next) => { setRange(next); saveDateRange(next); }} tokens={T} /></div>
     </header>
 
     <section className="finance-kpis"><Kpi label="Receitas" value={income} color="#00d084" tokens={T} /><Kpi label="Despesas" value={expenses} color="#ff4444" tokens={T} /><Kpi label="Saldo" value={income - expenses} color={income - expenses >= 0 ? "#00d084" : "#ff4444"} tokens={T} /><Kpi label="Categorias" value={categories.length} color="#f59e0b" tokens={T} raw /></section>
@@ -85,9 +126,10 @@ export default function VisaoMes({ title = "Visão do mês", variant = "month" }
       {tab === "history" && <Panel title={`Evolução Mensal por Categoria (${variant === "all" ? "todo período" : "este mês"})`}><div className="history-chart"><ResponsiveContainer width="100%" height={380}><LineChart data={historyChartData} margin={{ top: 8, right: 18, left: 8, bottom: 8 }}><CartesianGrid stroke={T.border} strokeDasharray="4 4" vertical={false} /><XAxis dataKey="mes" stroke={T.textMuted} /><YAxis stroke={T.textMuted} tickFormatter={(value) => `R$${value}`} /><Tooltip contentStyle={tooltip} formatter={(value) => formatMoney(Number(value))} /><Legend verticalAlign="bottom" height={34} />{history.categories.map((category) => <Line key={category.name} type="monotone" dataKey={category.name} name={category.name} stroke={category.color} strokeWidth={2.5} dot={{ r: 3, fill: category.color }} activeDot={{ r: 5 }} />)}</LineChart></ResponsiveContainer></div><SummaryCards categories={history.categories} tokens={T} /></Panel>}
       {tab === "flow" && <Panel title="Entradas e saídas"><ResponsiveContainer width="100%" height={380}><BarChart data={byMonth}><CartesianGrid stroke={T.border} strokeDasharray="3 3" /><XAxis dataKey="mes" stroke={T.textMuted} /><YAxis stroke={T.textMuted} tickFormatter={(value) => `R$${value}`} /><Tooltip contentStyle={tooltip} formatter={(value) => formatMoney(Number(value))} /><Legend /><Bar dataKey="entradas" name="Entradas" fill="#00d084" radius={[5, 5, 0, 0]} /><Bar dataKey="saidas" name="Saídas" fill="#ff4444" radius={[5, 5, 0, 0]} /></BarChart></ResponsiveContainer></Panel>}
       {tab === "transactions" && <Panel title={`Transações no período (${sortedTransactions.length})`}><div className="transaction-list">{sortedTransactions.map((item) => <div className="transaction" key={item.id}><span className="transaction-icon">{item.icon || CATEGORY_META[item.category]?.icon || "💰"}</span><div><strong>{item.desc}</strong><small>{formatDateBR(item.date)} · {item.category}</small></div><b className={item.amount > 0 ? "income" : "expense"}>{item.amount > 0 ? "+" : "-"}{formatMoney(item.amount)}</b></div>)}</div></Panel>}
+      {tab === "categories" && <Panel title="Categorias"><div className="category-management-list">{categories.map((category) => { const total = byCategory.find((item) => item.name === category)?.value || 0; return <div className="category-management-row" key={category}><span><i style={{ background: categoryColors[category] || "#888" }} />{CATEGORY_META[category]?.icon || "💰"} {category}</span><b>{formatMoney(total)}</b><div><button type="button" onClick={() => openCategoryForm(category)}>Editar</button><button type="button" onClick={() => deleteCategory(category)}>Apagar</button></div></div>; })}</div>{categories.length === 0 && <p className="category-empty">Nenhuma categoria criada.</p>}<button type="button" onClick={() => openCategoryForm()} className="finance-add category-management-add">＋ Nova categoria</button></Panel>}
     </section>
 
-    {showCategoryForm && <div className="category-modal" role="dialog" aria-modal="true"><form onSubmit={addCategory} style={{ background: T.surface, borderColor: T.border }}><h2>Adicionar categoria</h2><input autoFocus value={newCategory} onChange={(event) => setNewCategory(event.target.value)} placeholder="Ex.: Educação" required /><label className="category-color-field">Cor da categoria<input type="color" value={newCategoryColor} onChange={(event) => setNewCategoryColor(event.target.value)} required /></label><div><button type="button" onClick={() => setShowCategoryForm(false)}>Cancelar</button><button type="submit">Adicionar</button></div></form></div>}
+    {showCategoryForm && <div className="category-modal" role="dialog" aria-modal="true"><form onSubmit={addCategory} style={{ background: T.surface, borderColor: T.border }}><h2>{editingCategory ? "Editar categoria" : "Adicionar categoria"}</h2><input autoFocus value={newCategory} onChange={(event) => setNewCategory(event.target.value)} placeholder="Ex.: Educação" required /><label className="category-color-field">Cor da categoria<input type="color" value={newCategoryColor} onChange={(event) => setNewCategoryColor(event.target.value)} required /></label><div><button type="button" onClick={closeCategoryForm}>Cancelar</button><button type="submit">{editingCategory ? "Salvar" : "Adicionar"}</button></div></form></div>}
   </main>;
 }
 

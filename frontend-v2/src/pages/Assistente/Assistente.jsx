@@ -19,9 +19,14 @@ import logoHorizontalBranca from "@/assets/logos/logo-horizontal-branca.svg";
 import logoHorizontalPreta from "@/assets/logos/logo-horizontal-preta.svg";
 
 import ThemeSwitch from "@/components/navigation/ThemeSwitch";
-import { CATEGORY_META, aggregateByCategory, loadCategories, loadCategoryColors, loadTransactions, saveTransactions } from "@/services/finance/store";
+import { CATEGORY_META, aggregateByCategory, loadCategories, loadCategoryColors, loadGoals, loadTransactions, saveGoals, saveTransactions } from "@/services/finance/store";
+import { calculateFinancialHealth } from "@/services/finance/financeHealth";
 
 import "./Assistente.css";
+
+function createChatTransactionId() {
+  return `chat-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
 
 export default function Assistente() {
   /* ==========================================================================
@@ -36,6 +41,11 @@ export default function Assistente() {
   const [transactions, setTransactions] = useState(loadTransactions);
   const [categories, setCategories] = useState(loadCategories);
   const [categoryColors, setCategoryColors] = useState(loadCategoryColors);
+  const [goals, setGoals] = useState(loadGoals);
+  const [goalFormOpen, setGoalFormOpen] = useState(false);
+  const [editingGoalId, setEditingGoalId] = useState(null);
+  const [goalName, setGoalName] = useState("");
+  const [goalTarget, setGoalTarget] = useState("");
   const [isTyping, setIsTyping] = useState(false);
 
   const userMenuRef = useRef(null);
@@ -93,14 +103,17 @@ export default function Assistente() {
       setTransactions(loadTransactions());
       setCategories(loadCategories());
       setCategoryColors(loadCategoryColors());
+      setGoals(loadGoals());
     };
 
     window.addEventListener("junta:transactions-changed", refreshFinanceData);
     window.addEventListener("junta:categories-changed", refreshFinanceData);
+    window.addEventListener("junta:goals-changed", refreshFinanceData);
 
     return () => {
       window.removeEventListener("junta:transactions-changed", refreshFinanceData);
       window.removeEventListener("junta:categories-changed", refreshFinanceData);
+      window.removeEventListener("junta:goals-changed", refreshFinanceData);
     };
   }, []);
 
@@ -141,15 +154,6 @@ export default function Assistente() {
    * Substituir pelos dados financeiros vindos do backend.
    */
 
-  const balance = 2359.5;
-
-  const balanceClass =
-    balance > 0
-      ? "assistant__summary-value--positive"
-      : balance < 0
-        ? "assistant__summary-value--negative"
-        : "assistant__summary-value--neutral";
-
   /* ==========================================================================
      Financial Widgets
      ========================================================================== */
@@ -159,18 +163,63 @@ export default function Assistente() {
    * Substituir pelos dados vindos do backend.
    */
 
-  const goal = {
-    name: "Reserva de emergência",
-    current: 4200,
-    target: 6000,
-    percentage: 70,
-    remaining: 1800,
+  const goalBalance = transactions.reduce((sum, item) => sum + item.amount, 0);
+  const goal = goals[0] || null;
+  const goalAllocations = goals.map((item, index) => {
+    const allocatedBefore = goals.slice(0, index).reduce((sum, previousGoal) => sum + previousGoal.target, 0);
+    const current = Math.min(item.target, Math.max(0, goalBalance - allocatedBefore));
+    return {
+      ...item,
+      current,
+      percentage: item.target > 0 ? Math.round((current / item.target) * 100) : 0,
+      remaining: Math.max(0, item.target - current),
+    };
+  });
+
+  const openGoalForm = (currentGoal = null) => {
+    setEditingGoalId(currentGoal?.id || null);
+    setGoalName(currentGoal?.name || "");
+    setGoalTarget(currentGoal ? String(currentGoal.target).replace(".", ",") : "");
+    setGoalFormOpen(true);
   };
 
-  const financialHealth = {
-    score: 82,
-    status: "Ótimo",
+  const closeGoalForm = () => {
+    setGoalFormOpen(false);
+    setEditingGoalId(null);
+    setGoalName("");
+    setGoalTarget("");
   };
+
+  const submitGoal = (event) => {
+    event.preventDefault();
+    const name = goalName.trim();
+    const target = Number(goalTarget.replace(",", "."));
+    if (!name || !Number.isFinite(target) || target <= 0) return;
+    const nextGoals = editingGoalId
+      ? goals.map((item) => item.id === editingGoalId ? { ...item, name, target: Math.max(target, goalBalance) } : item)
+      : [...goals, { id: `goal-${Date.now()}`, name, current: 0, target }];
+    setGoals(nextGoals);
+    saveGoals(nextGoals);
+    closeGoalForm();
+  };
+
+  const deleteGoal = (id) => {
+    const nextGoals = goals.filter((item) => item.id !== id);
+    setGoals(nextGoals);
+    saveGoals(nextGoals);
+  };
+
+  const moveGoal = (id, direction) => {
+    const index = goals.findIndex((item) => item.id === id);
+    const nextIndex = index + direction;
+    if (index < 0 || nextIndex < 0 || nextIndex >= goals.length) return;
+    const nextGoals = [...goals];
+    [nextGoals[index], nextGoals[nextIndex]] = [nextGoals[nextIndex], nextGoals[index]];
+    setGoals(nextGoals);
+    saveGoals(nextGoals);
+  };
+
+  const financialHealth = calculateFinancialHealth(transactions);
 
   const monthlyIncome = transactions
     .filter((item) => item.amount > 0)
@@ -178,6 +227,13 @@ export default function Assistente() {
   const monthlyExpenses = transactions
     .filter((item) => item.amount < 0)
     .reduce((sum, item) => sum + Math.abs(item.amount), 0);
+  const balance = monthlyIncome - monthlyExpenses;
+  const balanceClass =
+    balance > 0
+      ? "assistant__summary-value--positive"
+      : balance < 0
+        ? "assistant__summary-value--negative"
+        : "assistant__summary-value--neutral";
   const categoryData = aggregateByCategory(transactions, categories, categoryColors);
   const monthlyBalanceClass = monthlyIncome - monthlyExpenses >= 0
     ? "assistant__widget-month-value--positive"
@@ -204,6 +260,27 @@ export default function Assistente() {
   /* ==========================================================================
      Chat
      ========================================================================== */
+
+  const appendTransaction = (transaction, successMessage) => {
+    const next = [...transactions, transaction];
+
+    try {
+      saveTransactions(next);
+      setTransactions(next);
+      setMessages((currentMessages) => [
+        ...currentMessages,
+        { id: Date.now() + 1, type: "assistant", text: successMessage },
+      ]);
+    } catch {
+      setMessages((currentMessages) => [
+        ...currentMessages,
+        { id: Date.now() + 1, type: "assistant", text: "Não consegui salvar esse lançamento. Tente novamente." },
+      ]);
+    } finally {
+      setPendingExpense(null);
+      setIsTyping(false);
+    }
+  };
 
   const handleSubmit = (event) => {
     event.preventDefault();
@@ -239,12 +316,10 @@ export default function Assistente() {
     const today = new Date().toISOString().split("T")[0];
 
     if (amount > 0 && entryMatch) {
-      const transaction = { id: `chat-${Date.now()}`, date: today, category: "Renda", desc: "Entrada via chat", amount, icon: CATEGORY_META.Renda.icon };
-      const next = [...transactions, transaction];
-      saveTransactions(next);
-      setTransactions(next);
-      setMessages((currentMessages) => [...currentMessages, { id: Date.now() + 1, type: "assistant", text: "Entrada registrada. Seus gráficos já foram atualizados." }]);
-      setIsTyping(false);
+      appendTransaction(
+        { id: createChatTransactionId(), date: today, category: "Renda", desc: "Entrada via chat", amount, icon: CATEGORY_META.Renda.icon },
+        "Entrada registrada. Seus gráficos já foram atualizados.",
+      );
       return;
     }
 
@@ -263,12 +338,10 @@ export default function Assistente() {
 
   const registerExpense = (category) => {
     if (!pendingExpense) return;
-    const transaction = { id: `chat-${transactions.length + 1}`, ...pendingExpense, category, amount: -pendingExpense.amount, icon: CATEGORY_META[category]?.icon || "💰" };
-    const next = [...transactions, transaction];
-    saveTransactions(next);
-    setTransactions(next);
-    setPendingExpense(null);
-    setMessages((currentMessages) => [...currentMessages, { id: Date.now() + 1, type: "assistant", text: `Saída registrada em ${category}. Seus gráficos já foram atualizados.` }]);
+    appendTransaction(
+      { id: createChatTransactionId(), ...pendingExpense, category, amount: -pendingExpense.amount, icon: CATEGORY_META[category]?.icon || "💰" },
+      `Saída registrada em ${category}. Seus gráficos já foram atualizados.`,
+    );
   };
 
   /* ==========================================================================
@@ -569,7 +642,7 @@ export default function Assistente() {
           <strong
             className={`assistant__summary-value ${balanceClass}`}
           >
-            R$ {(monthlyIncome - monthlyExpenses).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
+            R$ {balance.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
           </strong>
 
         </article>
@@ -772,70 +845,40 @@ export default function Assistente() {
           {/* Metas */}
 
           <section className="assistant__widget assistant__widget--goals">
-
             <div className="assistant__widget-header">
-
               <div>
-
-                <span className="assistant__widget-label">
-                  Metas
-                </span>
-
-                <h2 className="assistant__widget-title">
-                  {goal.name}
-                </h2>
-
+                <span className="assistant__widget-label">Metas</span>
+                <h2 className="assistant__widget-title">{goal ? goal.name : "Nenhuma meta criada"}</h2>
               </div>
-
-              <strong className="assistant__widget-value">
-                {goal.percentage}%
-              </strong>
-
+              <button type="button" className="assistant__goal-add" onClick={() => openGoalForm()}>
+                + Nova meta
+              </button>
             </div>
 
-            <div className="assistant__goal-progress">
-              <span
-                style={{
-                  width: `${goal.percentage}%`,
-                }}
-              />
-            </div>
+            {goalFormOpen && <form className="assistant__goal-form" onSubmit={submitGoal}>
+              <input autoFocus value={goalName} onChange={(event) => setGoalName(event.target.value)} placeholder="Nome da meta" required />
+              <input value={goalTarget} onChange={(event) => setGoalTarget(event.target.value.replace(/[^\d.,]/g, ""))} placeholder="Valor alvo" inputMode="decimal" required />
+              <div><button type="button" onClick={closeGoalForm}>Cancelar</button><button type="submit">{editingGoalId ? "Salvar" : "Criar"}</button></div>
+            </form>}
 
-            <div className="assistant__widget-footer">
-
-              <span>
-                R${" "}
-                {goal.current.toLocaleString(
-                  "pt-BR",
-                  {
-                    minimumFractionDigits: 2,
-                  }
-                )}
-              </span>
-
-              <span>
-                de R${" "}
-                {goal.target.toLocaleString(
-                  "pt-BR",
-                  {
-                    minimumFractionDigits: 2,
-                  }
-                )}
-              </span>
-
-            </div>
-
-            <p className="assistant__widget-caption">
-              R${" "}
-              {goal.remaining.toLocaleString(
-                "pt-BR",
-                {
-                  minimumFractionDigits: 2,
-                }
-              )}{" "}
-              restantes
-            </p>
-
+            {goalAllocations.map((item, index) => {
+              const { current, percentage, remaining } = item;
+              return <div className="assistant__goal-item" key={item.id}>
+                <div className="assistant__goal-item-header">
+                  <strong>{item.name}</strong>
+                  <span>
+                    <button type="button" onClick={() => moveGoal(item.id, -1)} disabled={index === 0} aria-label={`Priorizar ${item.name}`}>↑</button>
+                    <button type="button" onClick={() => moveGoal(item.id, 1)} disabled={index === goalAllocations.length - 1} aria-label={`Adiar ${item.name}`}>↓</button>
+                    <button type="button" onClick={() => openGoalForm(item)} aria-label={`Editar ${item.name}`}>Editar</button>
+                    <button type="button" onClick={() => deleteGoal(item.id)} aria-label={`Excluir ${item.name}`}>Excluir</button>
+                  </span>
+                </div>
+                <strong className="assistant__widget-value">{percentage}%</strong>
+                <div className="assistant__goal-progress"><span style={{ width: `${percentage}%` }} /></div>
+                <div className="assistant__widget-footer"><span>R$ {current.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</span><span>de R$ {item.target.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</span></div>
+                <p className="assistant__widget-caption">R$ {remaining.toLocaleString("pt-BR", { minimumFractionDigits: 2 })} restantes</p>
+              </div>;
+            })}
           </section>
 
           {/* Saúde Financeira */}
@@ -853,7 +896,7 @@ export default function Assistente() {
             <div className="assistant__health-content">
 
               <strong className="assistant__health-score">
-                {financialHealth.score}
+                {financialHealth.score}%
               </strong>
 
               <span className="assistant__health-status">
@@ -869,6 +912,14 @@ export default function Assistente() {
                 }}
               />
             </div>
+
+            <p className="assistant__health-context">
+              Poupança: {financialHealth.savingsRate}% · Custos fixos: {financialHealth.fixedCommitment}% · Consistência: {financialHealth.consistency}%
+            </p>
+
+            <p className="assistant__widget-caption">
+              {financialHealth.action}
+            </p>
 
           </section>
 

@@ -22,6 +22,11 @@ const TRANSACTIONS_KEY = "junta_transactions";
 const CATEGORIES_KEY = "junta_categories";
 const CATEGORY_COLORS_KEY = "junta_category_colors";
 const RANGE_KEY = "junta_date_range";
+const GOALS_KEY = "junta_goals";
+
+const SEED_GOALS = [
+  { id: "goal-emergency", name: "Reserva de emergência", current: 4200, target: 6000 },
+];
 
 export function getCurrentMonthRange(date = new Date()) {
   const year = date.getUTCFullYear();
@@ -43,7 +48,7 @@ export function saveTransactions(transactions) {
   localStorage.setItem(TRANSACTIONS_KEY, JSON.stringify(transactions));
   const range = loadDateRange();
   const dates = transactions.map((transaction) => transaction.date).filter(Boolean).sort();
-  if (dates.length && (dates[0] < range.start || dates[dates.length - 1] > range.end)) {
+  if (range && dates.length && (dates[0] < range.start || dates[dates.length - 1] > range.end)) {
     saveDateRange({
       start: dates[0] < range.start ? dates[0] : range.start,
       end: dates[dates.length - 1] > range.end ? dates[dates.length - 1] : range.end,
@@ -89,6 +94,19 @@ export function saveDateRange(range) {
   localStorage.setItem(RANGE_KEY, JSON.stringify(range));
 }
 
+export function loadGoals() {
+  try {
+    const raw = localStorage.getItem(GOALS_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch { return SEED_GOALS; }
+  return SEED_GOALS;
+}
+
+export function saveGoals(goals) {
+  localStorage.setItem(GOALS_KEY, JSON.stringify(goals));
+  window.dispatchEvent(new Event("junta:goals-changed"));
+}
+
 export function filterByRange(transactions, range) {
   if (!range) return transactions;
   return transactions.filter((transaction) => transaction.date >= range.start && transaction.date <= range.end);
@@ -99,7 +117,7 @@ export function aggregateByCategory(transactions, categories = [], categoryColor
   categories.filter((category) => category !== "Renda").forEach((category) => {
     values[category] = 0;
   });
-  transactions.filter((transaction) => transaction.amount < 0).forEach((transaction) => {
+  transactions.filter((transaction) => transaction.amount < 0 && categories.includes(transaction.category)).forEach((transaction) => {
     values[transaction.category] = (values[transaction.category] || 0) + Math.abs(transaction.amount);
   });
   const total = Object.values(values).reduce((sum, value) => sum + value, 0);
@@ -143,8 +161,7 @@ export function aggregateCategoryHistory(transactions, categories = [], category
   }
 
   const values = Object.fromEntries(expenseCategories.map((category) => [category, Object.fromEntries(months.map(({ key }) => [key, 0]))]));
-  datedTransactions.forEach((transaction) => {
-    if (!values[transaction.category]) values[transaction.category] = Object.fromEntries(months.map(({ key }) => [key, 0]));
+  datedTransactions.filter((transaction) => expenseCategories.includes(transaction.category)).forEach((transaction) => {
     values[transaction.category][transaction.date.slice(0, 7)] += Math.abs(transaction.amount);
   });
 
